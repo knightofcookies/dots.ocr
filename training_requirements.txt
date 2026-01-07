@@ -1,0 +1,14 @@
+# Requirements for training dots.ocr model
+torch>=2.0.0
+transformers>=4.37.0
+accelerate>=0.25.0
+datasets>=2.16.0
+peft>=0.8.0  # For LoRA training
+wandb  # For experiment tracking
+Pillow>=8.0.0
+tqdm
+qwen-vl-utils  # Required for vision processing
+# flash-attn>=2.0.0  # Optional: Only for Ampere+ GPUs (A100, L4, etc.). Not needed for T4.
+# Install with: pip install flash-attn --no-build-isolation (requires CUDA toolkit and compatible GPU)
+deepspeed  # For distributed training (optional)
+bitsandbytes  # For quantization (optional)
