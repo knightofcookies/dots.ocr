@@ -49,13 +49,27 @@ class DotsOCRParser:
         self.max_pixels = max_pixels
 
         self.use_hf = use_hf
+        self.attn_implementation = "eager" # default
         if self.use_hf:
             self._load_hf_model()
             print(f"use hf model, num_thread will be set to 1")
         else:
             print(f"use vllm model, num_thread will be set to {self.num_thread}")
-        assert self.min_pixels is None or self.min_pixels >= MIN_PIXELS
-        assert self.max_pixels is None or self.max_pixels <= MAX_PIXELS
+        
+        # Set default pixel limits if not provided
+        if self.min_pixels is None:
+            self.min_pixels = MIN_PIXELS
+        if self.max_pixels is None:
+            # If using eager attention, cap pixels to avoid $O(N^2)$ memory explosion
+            if self.attn_implementation == "eager":
+                # ~1.4M pixels (approx 1800 tokens) is much safer for 16GB GPUs without Flash Attention
+                self.max_pixels = min(MAX_PIXELS, 1404928) 
+                print(f"Eager attention detected: capping max_pixels to {self.max_pixels} to prevent OOM")
+            else:
+                self.max_pixels = MAX_PIXELS
+            
+        assert self.min_pixels >= MIN_PIXELS
+        assert self.max_pixels <= MAX_PIXELS
 
     def _load_hf_model(self):
         import torch
@@ -63,23 +77,20 @@ class DotsOCRParser:
         from qwen_vl_utils import process_vision_info
 
         # Detect GPU for Flash Attention compatibility
-        attn_implementation = None
+        self.attn_implementation = "eager"
         if torch.cuda.is_available():
             capability = torch.cuda.get_device_capability(0)
             compute = float(f'{capability[0]}.{capability[1]}')
             if compute >= 8.0:
                 print("Flash Attention 2 is supported and will be used.")
-                attn_implementation = "flash_attention_2"
+                self.attn_implementation = "flash_attention_2"
             else:
                 print(f"⚠️  GPU compute capability {compute} < 8.0. Using standard attention.")
-                attn_implementation = "eager"
-        else:
-            attn_implementation = "eager"
-
+        
         model_path = "./weights/DotsOCR"
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            attn_implementation=attn_implementation,
+            attn_implementation=self.attn_implementation,
             torch_dtype=torch.bfloat16,
             device_map="auto",
             trust_remote_code=True
