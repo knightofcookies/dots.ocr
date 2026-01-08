@@ -130,7 +130,9 @@ class DotsOCRParser:
         inputs = inputs.to("cuda")
 
         # Inference: Generation of the output
-        generated_ids = self.model.generate(**inputs, max_new_tokens=24000)
+        # Use the instance-level max_completion_tokens (safer than the hardcoded large value)
+        max_new = getattr(self, "max_completion_tokens", 1024)
+        generated_ids = self.model.generate(**inputs, max_new_tokens=max_new)
         generated_ids_trimmed = [
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
