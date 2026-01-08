@@ -55,9 +55,24 @@ def inference(image_path, prompt, model, processor):
 if __name__ == "__main__":
     # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
     model_path = "./weights/DotsOCR"
+
+    # Detect GPU for Flash Attention compatibility
+    attn_implementation = None
+    if torch.cuda.is_available():
+        capability = torch.cuda.get_device_capability(0)
+        compute = float(f'{capability[0]}.{capability[1]}')
+        if compute >= 8.0:
+            print("Flash Attention 2 is supported and will be used.")
+            attn_implementation = "flash_attention_2"
+        else:
+            print(f"⚠️  GPU compute capability {compute} < 8.0. Using standard attention.")
+            attn_implementation = "eager"
+    else:
+        attn_implementation = "eager"
+
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
-        attn_implementation="flash_attention_2",
+        attn_implementation=attn_implementation,
         torch_dtype=torch.bfloat16,
         device_map="auto",
         trust_remote_code=True
